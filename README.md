@@ -13,7 +13,9 @@ Run with the environment variable `DATABASE_URL` pointing to a
 
 ## Installation
 
-CREATE ROLE moven LOGIN NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+```sql
+
+CREATE ROLE regex_user LOGIN NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
 
 CREATE DATABASE regex
   WITH OWNER = postgres
@@ -38,5 +40,7 @@ CREATE TABLE public.template
 WITH (
   OIDS=FALSE
 );
-ALTER TABLE public.template
-  OWNER TO regex_user;
+
+ALTER TABLE public.template OWNER TO regex_user;
+
+```
