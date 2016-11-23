@@ -4,12 +4,77 @@
 #
 
 import cgi
+import datetime
 import json
+import os
 import platform
+import psycopg2
 import re
 import sysconfig
 import sys
+import urlparse
+import uuid
 import webapp2
+
+def safe_escape(target):
+	if target is None:
+		return "<i>(null)</i>"
+
+	if len(target) == 0:
+		return "<i>(empty)</i>"
+
+	return cgi.escape(target)
+
+def pg_connect():
+    urlparse.uses_netloc.append("postgres")
+
+    url = urlparse.urlparse(os.environ["DATABASE_URL"])
+
+    conn = psycopg2.connect(
+        database=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port
+    )
+
+    return conn
+
+def pg_escape(s):
+   if not isinstance(s, basestring):
+       raise TypeError("%r must be a str or unicode" %(s, ))
+   escaped = repr(s)
+   if isinstance(s, unicode):
+       assert escaped[:1] == 'u'
+       escaped = escaped[1:]
+   if escaped[:1] == '"':
+       escaped = escaped.replace("'", "\\'")
+   elif escaped[:1] != "'":
+       raise AssertionError("unexpected repr: %s", escaped)
+   return "E'%s'" %(escaped[1:-1], )
+
+def do_query(query, params):
+
+    cols = []
+    rows = []
+
+    #t = Template(raw_query)
+    #query = t.render(metadata["params"])
+
+    conn = pg_connect()
+    cur = conn.cursor()
+    cur.execute(query)
+
+    for col_metadata in cur.description:
+        cols.append(col_metadata[0])
+
+    for row in cur:
+        rows.append(row)
+
+
+    conn.close()
+
+    return cols, rows
 
 def add_if_exists(obj, key, value):
 	if value:
@@ -21,7 +86,7 @@ class StatusPage(webapp2.RequestHandler):
 		retVal = {}
 		retVal["success"] = True
 		retVal["message"] = "OK"
-		retVal["version"] = "%s (%s)" % (platform.python_version(), platform.python_implementation())
+
 		add_if_exists(retVal, "platform.machine()", platform.machine())
 		add_if_exists(retVal, "platform.node()", platform.node())
 		#IOError: add_if_exists(retVal, "platform.platform()", platform.platform())
@@ -46,6 +111,15 @@ class StatusPage(webapp2.RequestHandler):
 		add_if_exists(retVal, "sys.maxsize", sys.maxsize)
 		add_if_exists(retVal, "sys.maxunicode", sys.maxunicode)
 		add_if_exists(retVal, "sys.version", sys.version)
+
+		cols, rows = do_query("SELECT version(), current_setting('server_version'), current_setting('server_version_num');", None)
+		dbdetail = rows[0][0] if len(rows) > 0 else None
+		dbversion = rows[0][1] if len(rows) > 0 else None
+		dbversionnum = rows[0][2] if len(rows) > 0 else None
+		retVal["version"] = dbversion
+
+		add_if_exists(retVal, "SELECT version();", dbdetail)
+		add_if_exists(retVal, "SELECT current_setting('server_version_num');", dbversionnum)
 
 		self.response.headers['Content-Type'] = 'text/plain'
 
@@ -98,29 +172,8 @@ class TestPage(webapp2.RequestHandler):
 
 		replacement = self.request.get('replacement')
 		inputs = self.request.get_all('input')
-
-		options = set(self.request.get_all('option'))
-		flags = 0
-		flagList = []
-		if "ignorecase" in options:
-			flags |= re.IGNORECASE
-			flagList.append("IGNORECASE")
-		if "locale" in options:
-			flags |= re.LOCALE
-			flagList.append("LOCALE")
-		if "multiline" in options:
-			flags |= re.MULTILINE
-			flagList.append("MULTILINE")
-		if "dotall" in options:
-			flags |= re.DOTALL
-			flagList.append("DOTALL")
-		if "unicode" in options:
-			flags |= re.UNICODE
-			flagList.append("UNICODE")
-		if "verbose" in options:
-			flags |= re.VERBOSE
-			flagList.append("VERBOSE")
-
+		if len(inputs) == 0:
+			return json.dumps({"success": False, "message": "no input for test the regular expression"})
 
 		html = []
 		html.append('<table class="table table-bordered table-striped" style="width:auto;">\n')
@@ -131,25 +184,7 @@ class TestPage(webapp2.RequestHandler):
 		html.append('Regular Expression')
 		html.append('</td>\n')
 		html.append('\t\t\t<td>')
-		html.append(cgi.escape(regex))
-		html.append('</td>\n')
-		html.append('\t\t</tr>\n')
-
-		html.append('\t\t<tr>\n')
-		html.append('\t\t\t<td>')
-		html.append('as a raw Python string')
-		html.append('</td>\n')
-		html.append('\t\t\t<td>')
-		html.append(cgi.escape("r'" + regex + "'"))
-		html.append('</td>\n')
-		html.append('\t\t</tr>\n')
-
-		html.append('\t\t<tr>\n')
-		html.append('\t\t\t<td>')
-		html.append('as a regular Python string (with re.escape())')
-		html.append('</td>\n')
-		html.append('\t\t\t<td>')
-		html.append(cgi.escape("'" + re.escape(regex)) + "'")
+		html.append(safe_escape(regex))
 		html.append('</td>\n')
 		html.append('\t\t</tr>\n')
 
@@ -158,85 +193,21 @@ class TestPage(webapp2.RequestHandler):
 		html.append('replacement')
 		html.append('</td>\n')
 		html.append('\t\t\t<td>')
-		html.append(cgi.escape(replacement))
-		html.append('</td>\n')
-		html.append('\t\t</tr>\n')
-
-		if len(options) > 0:
-			html.append('\t\t<tr>\n')
-			html.append('\t\t\t<td>')
-			html.append('flags (as constants)')
-			html.append('</td>\n')
-			html.append('\t\t\t<td>')
-			html.append(cgi.escape("|".join(flagList)))
-			html.append('</td>\n')
-			html.append('\t\t</tr>\n')
-
-		try:
-			pattern = re.compile(regex, flags)
-		except Exception as e:
-			html.append('\t\t<tr>\n')
-			html.append('\t\t\t<td>')
-			html.append('Exception')
-			html.append('</td>\n')
-			html.append('\t\t\t<td>')
-			html.append(cgi.escape(str(e)))
-			html.append('</td>\n')
-			html.append('\t\t</tr>\n')
-			html.append('\t</tbody>\n')
-			html.append('</table>\n')
-			return json.dumps({"success": False, "message": "re.compile() Exception:" + str(e), "html": "".join(html)})
-
-		if len(options) > 0:
-			html.append('\t\t<tr>\n')
-			html.append('\t\t\t<td>')
-			html.append('flags')
-			html.append('</td>\n')
-			html.append('\t\t\t<td>')
-			html.append(str(pattern.flags))
-			html.append('</td>\n')
-			html.append('\t\t</tr>\n')
-
-		html.append('\t\t<tr>\n')
-		html.append('\t\t\t<td>')
-		html.append('# of groups (.group)')
-		html.append('</td>\n')
-		html.append('\t\t\t<td>')
-		html.append(str(pattern.groups))
-		html.append('</td>\n')
-		html.append('\t\t</tr>\n')
-
-		html.append('\t\t<tr>\n')
-		html.append('\t\t\t<td>')
-		html.append('Group name mapping (.groupindex)')
-		html.append('</td>\n')
-		html.append('\t\t\t<td>')
-		html.append(str(pattern.groupindex))
+		html.append(safe_escape(replacement))
 		html.append('</td>\n')
 		html.append('\t\t</tr>\n')
 
 		html.append('\t</tbody>\n')
 		html.append('</table>\n')
 
-		html.append('<table class="table table-bordered table-striped">\n')
-		html.append('\t<thead>\n')
-		html.append('\t\t<tr>\n')
-		html.append('\t\t\t<th style="text-align:center;">Test</th>\n')
-		html.append('\t\t\t<th>Target String</th>\n')
-		html.append('\t\t\t<th>findall()</th>\n')
-		#html.append('\t\t\t<th>match()</th>\n')
-		html.append('\t\t\t<th>split()</th>\n')
-		html.append('\t\t\t<th>sub()</th>\n')
-		html.append('\t\t\t<th>search()</th>\n')
-		for loop in range(0, pattern.groups+1):
-			html.append('\t\t\t<th>group(')
-			html.append(str(loop))
-			html.append(')</th>\n');
+		conn = pg_connect()
+		cur = conn.cursor()
+		# create the table
+		tablename = "test_" + datetime.datetime.now().strftime("%Y%m%dT%H%M%S") + "_" + str(uuid.uuid4()).replace('-', '')
+		cur.execute("CREATE UNLOGGED TABLE %(table)s (LIKE template);", {"table": psycopg2.extensions.AsIs(tablename) })
+		conn.commit()
 
-		html.append('\t\t</tr>');
-		html.append('\t</thead>');
-		html.append('\t<tbody>');
-
+		# add the inputs
 		for loop in range(0, len(inputs)):
 
 			test = inputs[loop]
@@ -244,61 +215,58 @@ class TestPage(webapp2.RequestHandler):
 			if len(test) == 0:
 				continue
 
-			matcher = pattern.search(test)
+			print("test=%s\n" % test)
+
+			cur.execute("INSERT INTO %(table)s (id, input, regex, replacement) VALUES(%(id)s, %(input)s, %(regex)s, %(replacement)s)", {"id": loop, "table": psycopg2.extensions.AsIs(tablename), "input": test, "regex": regex, "replacement": replacement})
+
+		conn.commit()
+
+		cur.execute("SELECT (id+1)::varchar, input, (input SIMILAR TO regex)::varchar, (input ~ regex)::varchar, (input ~* regex)::varchar, (input !~ regex)::varchar, (input !~* regex)::varchar, substring(input from regex), regexp_replace(input, regex, replacement) FROM %(table)s", { "table": psycopg2.extensions.AsIs(tablename) })
+
+		rows = []
+		for row in cur:
+			rows.append(row)
+
+		# theoretically not required
+		#cur.execute("DROP TABLE %s;", [ tablename ])
+		#conn.commit()
+
+		conn.close()
+
+		html.append('<table class="table table-bordered table-striped">\n')
+		html.append('\t<thead>\n')
+		html.append('\t\t<tr>\n')
+		html.append('\t\t\t<th style="text-align:center;">Test</th>\n')
+		html.append('\t\t\t<th>Target String</th>\n')
+		html.append('\t\t\t<th>SIMILAR TO</th>\n')
+		html.append('\t\t\t<th>~</th>\n')
+		html.append('\t\t\t<th>~*</th>\n')
+		html.append('\t\t\t<th>!~</th>\n')
+		html.append('\t\t\t<th>!~*</th>\n')
+		html.append('\t\t\t<th>substring()</th>\n')
+		html.append('\t\t\t<th>regex_replace()</th>\n')
+		#html.append('\t\t\t<th>regex_matches()</th>\n')
+		html.append('\t\t</tr>');
+		html.append('\t</thead>');
+		html.append('\t<tbody>');
+
+		for row in rows:
 
 			html.append('\t\t<tr>\n')
 			html.append('\t\t\t<td style="text-align:center">')
-			html.append(str(loop+1))
+			html.append(cgi.escape(row[0]))
 			html.append('</td>\n')
 
-			html.append('\t\t\t<td>')
-			html.append(cgi.escape(test))
-			html.append('</td>\n')
-
-			html.append('\t\t\t<td>')
-			html.append(cgi.escape(str(pattern.findall(test))))
-			html.append('</td>\n')
+			for col in range(1,9):
+				html.append('\t\t\t<td>')
+				html.append(safe_escape(row[col]))
+				html.append('</td>\n')
 
 			#html.append('\t\t\t<td>')
-			#html.append(cgi.escape(str(pattern.match(test))))
+			#html.append(cgi.escape(row[1]))
 			#html.append('</td>\n')
 
-			html.append('\t\t\t<td>')
-			html.append(cgi.escape(str(pattern.split(test))))
-			html.append('</td>\n')
-
-			html.append('\t\t\t<td>')
-			html.append(cgi.escape(str(pattern.sub(replacement, test))))
-			html.append('</td>\n')
-
-			html.append('\t\t\t<td>')
-			if matcher:
-				html.append("pos=%d&nbsp;start()=%d&nbsp;end()=%d" % (matcher.pos, matcher.start(), matcher.end()))
-			html.append('</td>\n')
-
-			for group in range(0, pattern.groups+1):
-				html.append('\t\t\t<td>')
-				if matcher:
-					html.append(cgi.escape(matcher.group(group)))
-				html.append('</td>\n');
-
 			html.append('\t\t</tr>\n')
-
-			while matcher:
-				matcher = pattern.search(test, matcher.end())
-				if matcher:
-					html.append('\t\t<tr>\n');
-					html.append('\t\t\t<td colspan="5">&nbsp;</td>\n')
-					html.append('\t\t\t<td>')
-					html.append("pos=%d&nbsp;start()=%d&nbsp;end()=%d" % (matcher.pos, matcher.start(), matcher.end()))
-					html.append('</td>\n')
-
-					for group in range(0, pattern.groups+1):
-						html.append('\t\t\t<td>')
-						html.append(cgi.escape(matcher.group(group)))
-						html.append('</td>\n');
-
-					html.append('\t\t</tr>\n')
 
 
 		html.append('\t</tbody>\n')

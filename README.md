@@ -9,7 +9,7 @@ See [PostgreSQL online regex test page](http://www.regexplanet.com/advanced/post
 
 ## Running
 
-Run with the environment variable `DATABASE_URL` pointing to a 
+Run with the environment variable `DATABASE_URL` pointing to a
 
 ## Installation
 
@@ -31,16 +31,25 @@ GRANT ALL ON DATABASE regex TO regex_user;
 
 ALTER ROLE regex_user PASSWORD 'secret';
 
+DROP TABLE IF EXISTS template;
+
 CREATE TABLE public.template
 (
   id INTEGER NOT NULL,
-  target VARCHAR(255),
+  input VARCHAR(255) NOT NULL,
+  regex VARCHAR(255) NOT NULL,
+  replacement VARCHAR(255),
   CONSTRAINT template_pkey PRIMARY KEY (id)
 )
 WITH (
   OIDS=FALSE
 );
 
-ALTER TABLE public.template OWNER TO regex_user;
+--ALTER TABLE public.template OWNER TO regex_user;
 
 ```
+
+To Do
+=====
+ - [ ] support for (option flags)[https://www.postgresql.org/docs/current/static/functions-matching.html#POSIX-EMBEDDED-OPTIONS-TABLE]
+ - [ ] support for regex_matches (returns an array which needs `UNNEST()`, and skips rows if no matches)
