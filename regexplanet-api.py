@@ -215,8 +215,6 @@ class TestPage(webapp2.RequestHandler):
 			if len(test) == 0:
 				continue
 
-			print("test=%s\n" % test)
-
 			cur.execute("INSERT INTO %(table)s (id, input, regex, replacement) VALUES(%(id)s, %(input)s, %(regex)s, %(replacement)s)", {"id": loop, "table": psycopg2.extensions.AsIs(tablename), "input": test, "regex": regex, "replacement": replacement})
 
 		conn.commit()
@@ -227,9 +225,16 @@ class TestPage(webapp2.RequestHandler):
 		for row in cur:
 			rows.append(row)
 
-		# theoretically not required
-		#cur.execute("DROP TABLE %s;", [ tablename ])
-		#conn.commit()
+		matches = {}
+		cur.execute("SELECT (id+1)::varchar, UNNEST(regexp_matches(input, regex)) FROM %(table)s", { "table": psycopg2.extensions.AsIs(tablename) })
+		for row in cur:
+			if row[0] in matches:
+				matches[row[0]].append(row[1])
+			else:
+				matches[row[0]] = [ row[1] ]
+
+		cur.execute("DROP TABLE %(table)s;", { "table": psycopg2.extensions.AsIs(tablename) })
+		conn.commit()
 
 		conn.close()
 
@@ -245,7 +250,7 @@ class TestPage(webapp2.RequestHandler):
 		html.append('\t\t\t<th>!~*</th>\n')
 		html.append('\t\t\t<th>substring()</th>\n')
 		html.append('\t\t\t<th>regex_replace()</th>\n')
-		#html.append('\t\t\t<th>regex_matches()</th>\n')
+		html.append('\t\t\t<th>regex_matches()</th>\n')
 		html.append('\t\t</tr>');
 		html.append('\t</thead>');
 		html.append('\t<tbody>');
@@ -262,9 +267,14 @@ class TestPage(webapp2.RequestHandler):
 				html.append(safe_escape(row[col]))
 				html.append('</td>\n')
 
-			#html.append('\t\t\t<td>')
-			#html.append(cgi.escape(row[1]))
-			#html.append('</td>\n')
+			html.append('\t\t\t<td>')
+			if row[0] not in matches:
+				html.append("<i>(none)</i>")
+			else:
+				matchlist = matches[row[0]]
+				for matchloop in range(0, len(matchlist)):
+					html.append("%d: %s<br/>" % (matchloop+1, safe_escape(matchlist[matchloop])))
+			html.append('</td>\n')
 
 			html.append('\t\t</tr>\n')
 

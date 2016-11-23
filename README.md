@@ -9,7 +9,7 @@ See [PostgreSQL online regex test page](http://www.regexplanet.com/advanced/post
 
 ## Running
 
-Run with the environment variable `DATABASE_URL` pointing to a
+Run with the environment variable `DATABASE_URL` pointing to a PostgreSQL database setup as described below.  This will look like `DATABASE_URL=pg://regex_user:secret@localhost:5432/regex`.
 
 ## Installation
 
@@ -52,4 +52,4 @@ WITH (
 To Do
 =====
  - [ ] support for (option flags)[https://www.postgresql.org/docs/current/static/functions-matching.html#POSIX-EMBEDDED-OPTIONS-TABLE]
- - [ ] support for regex_matches (returns an array which needs `UNNEST()`, and skips rows if no matches)
+ - [x] support for regex_matches (returns an array which needs `UNNEST()`, and skips rows if no matches)
