@@ -111,15 +111,19 @@ class StatusPage(webapp2.RequestHandler):
 		add_if_exists(retVal, "sys.maxsize", sys.maxsize)
 		add_if_exists(retVal, "sys.maxunicode", sys.maxunicode)
 		add_if_exists(retVal, "sys.version", sys.version)
+		
+		if "DATABASE_URL" in os.environ:
 
-		cols, rows = do_query("SELECT version(), current_setting('server_version'), current_setting('server_version_num');", None)
-		dbdetail = rows[0][0] if len(rows) > 0 else None
-		dbversion = rows[0][1] if len(rows) > 0 else None
-		dbversionnum = rows[0][2] if len(rows) > 0 else None
-		retVal["version"] = dbversion
+		    cols, rows = do_query("SELECT version(), current_setting('server_version'), current_setting('server_version_num');", None)
+		    dbdetail = rows[0][0] if len(rows) > 0 else None
+		    dbversion = rows[0][1] if len(rows) > 0 else None
+		    dbversionnum = rows[0][2] if len(rows) > 0 else None
+		    retVal["version"] = dbversion
 
-		add_if_exists(retVal, "SELECT version();", dbdetail)
-		add_if_exists(retVal, "SELECT current_setting('server_version_num');", dbversionnum)
+		    add_if_exists(retVal, "SELECT version();", dbdetail)
+		    add_if_exists(retVal, "SELECT current_setting('server_version_num');", dbversionnum)
+		else:
+		    add_if_exists(retVal, "Database", "NOT CONFIGURED")
 
 		self.response.headers['Content-Type'] = 'text/plain'
 
@@ -299,4 +303,4 @@ app = webapp2.WSGIApplication(	[
 
 if __name__ == '__main__':
 	from paste import httpserver
-	httpserver.serve(app, host='127.0.0.1', port='8080')
+	httpserver.serve(app, host='0.0.0.0', port='8080')
