@@ -1,0 +1,32 @@
+CREATE ROLE rxp_user LOGIN NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+
+CREATE DATABASE rxp_db
+  WITH OWNER = rxp_user
+       ENCODING = 'UTF8'
+       TABLESPACE = pg_default
+       TEMPLATE = template0
+       CONNECTION LIMIT = -1;
+
+GRANT CONNECT, TEMPORARY ON DATABASE rxp_db TO public;
+GRANT ALL PRIVILEGES ON DATABASE rxp_db TO rxp_user;
+
+ALTER ROLE rxp_user PASSWORD 'secret';
+
+\connect rxp_db
+
+DROP TABLE IF EXISTS template;
+
+CREATE TABLE public.template
+(
+  id INTEGER NOT NULL,
+  input VARCHAR(255) NOT NULL,
+  regex VARCHAR(255) NOT NULL,
+  replacement VARCHAR(255),
+  CONSTRAINT template_pkey PRIMARY KEY (id)
+)
+WITH (
+  OIDS=FALSE
+);
+
+GRANT ALL PRIVILEGES ON TABLE template TO rxp_user;
+
