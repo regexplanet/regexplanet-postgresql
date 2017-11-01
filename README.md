@@ -53,3 +53,6 @@ To Do
 =====
  - [ ] support for (option flags)[https://www.postgresql.org/docs/current/static/functions-matching.html#POSIX-EMBEDDED-OPTIONS-TABLE]
  - [x] support for regex_matches (returns an array which needs `UNNEST()`, and skips rows if no matches)
+ - [ ] pass in port via env var
+ - [ ] Elastic Beanstalk
+ - [ ] logging
