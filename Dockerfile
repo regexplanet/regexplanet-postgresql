@@ -19,5 +19,4 @@ RUN \
 ENV DATABASE_URL=postgresql://rxp_user:secret@localhost:5432/rxp_db
    
 WORKDIR /app
-CMD service postgresql start && \
-    python regexplanet-api.py
+CMD ./server.sh

@@ -303,4 +303,6 @@ app = webapp2.WSGIApplication(	[
 
 if __name__ == '__main__':
 	from paste import httpserver
-	httpserver.serve(app, host='0.0.0.0', port='8080')
+	port = os.environ['PORT'] if 'PORT' in os.environ else '4000'
+	sys.stdout.write("INFO: starting on port %s\n" % port)
+	httpserver.serve(app, host='0.0.0.0', port=port)
