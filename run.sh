@@ -1,5 +1,7 @@
 #!/bin/bash
+#
+# run locally
+#
 
-#/usr/local/google_appengine/dev_appserver.py --port=8081 .
-export $(cat local.env)
+PORT=4000
 python regexplanet-api.py
