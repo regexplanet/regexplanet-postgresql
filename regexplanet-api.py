@@ -86,6 +86,10 @@ class StatusPage(webapp2.RequestHandler):
 		retVal = {}
 		retVal["success"] = True
 		retVal["message"] = "OK"
+		retVal["commit"] = os.environ["COMMIT"] if "COMMIT" in os.environ else "dev"
+		retVal["timestamp"] = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+		retVal["lastmod"] = os.environ["LASTMOD"] if "LASTMOD" in os.environ else "dev"
+		retVal["tech"] = "Python %d.%d.%d" % (sys.version_info.major, sys.version_info.minor, sys.version_info.micro)
 
 		add_if_exists(retVal, "platform.machine()", platform.machine())
 		add_if_exists(retVal, "platform.node()", platform.node())
@@ -129,6 +133,9 @@ class StatusPage(webapp2.RequestHandler):
 
 		callback = self.request.get('callback')
 		if len(callback) == 0 or re.match("[a-zA-Z][-a-zA-Z0-9_]*$", callback) is None:
+			self.response.headers['Access-Control-Allow-Origin'] = '*'
+			self.response.headers['Access-Control-Allow-Methods'] = 'POST, GET'
+			self.response.headers['Access-Control-Max-Age'] = '604800' # 1 week
 			self.response.out.write(json.dumps(retVal, separators=(',', ':')))
 		else:
 			self.response.out.write(callback)
@@ -290,13 +297,31 @@ class TestPage(webapp2.RequestHandler):
 
 class MainPage(webapp2.RequestHandler):
 	def get(self):
-		self.response.headers['Location'] = 'http://www.regexplanet.com/advanced/python/index.html'
+		self.response.headers['Location'] = 'http://www.regexplanet.com/advanced/postgresql/index.html'
 		self.response.status = 307
+
+class StaticFile(webapp2.RequestHandler):
+	def get(self):
+
+		ext = os.path.splitext(self.request.path)[1]
+		if (ext == '.txt'):
+			self.response.headers['Content-Type'] = 'text/plain'
+		elif ext == '.svg':
+			self.response.headers['Content-Type'] = 'image/svg+xml'
+		elif ext == '.ico':
+			self.response.headers['Content-Type'] = 'image/x-icon'
+
+		f = open(os.path.join(os.path.dirname(os.path.realpath(__file__)), self.request.path[1:]), mode='rb')
+		self.response.out.write(f.read())
+		f.close()
 
 app = webapp2.WSGIApplication(	[
 									('/', MainPage),
 									('/status.json', StatusPage),
-									('/test.json', TestPage)
+									('/test.json', TestPage),
+									('/robots.txt', StaticFile),
+									('/favicon.ico', StaticFile),
+									('/favicon.svg', StaticFile),
 								],
 								debug=True)
 
