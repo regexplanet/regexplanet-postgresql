@@ -1,0 +1,12 @@
+dist
+Dockerfile
+.dockerignore
+.editorconfig
+*.env
+.git
+.github
+.gitignore
+*.md
+*.sh
+*.tmp
+tmp*
