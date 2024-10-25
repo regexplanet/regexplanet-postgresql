@@ -11,8 +11,8 @@
   "license": "AGPL-3.0-or-later",
   "dependencies": {
     "@electric-sql/pglite": "^0.2.12",
-    "@regexplanet/common": "npm:@jsr/regexplanet__common@^1.2.0",
-    "@regexplanet/template": "npm:@jsr/regexplanet__template@^1.2.0"
+    "@regexplanet/common": "npm:@jsr/regexplanet__common@^1.2.1",
+    "@regexplanet/template": "npm:@jsr/regexplanet__template@^1.2.1"
   },
   "devDependencies": {
     "@types/emscripten": "^1.39.13",
